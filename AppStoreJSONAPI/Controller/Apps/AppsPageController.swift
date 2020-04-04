@@ -10,9 +10,16 @@ import UIKit
 
 class AppsPageController: BaseListController, UICollectionViewDelegateFlowLayout {
     
-    let cellId = "cellId"
+    let cellId = "id"
     let headerId = "headerId"
-    var groups = [AppGroup]()
+    
+    let activityIndicatorView: UIActivityIndicatorView = {
+        let aiv = UIActivityIndicatorView(style: .whiteLarge)
+        aiv.color = .black
+        aiv.startAnimating()
+        aiv.hidesWhenStopped = true
+        return aiv
+    }()
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -23,70 +30,79 @@ class AppsPageController: BaseListController, UICollectionViewDelegateFlowLayout
         // 1
         collectionView.register(AppsPageHeader.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: headerId)
         
+        view.addSubview(activityIndicatorView)
+        activityIndicatorView.fillSuperview()
+        
         fetchData()
     }
     
+//    var editorsChoiceGames: AppGroup?
+    
+    var socialApps = [SocialApp]()
+    var groups = [AppGroup]()
     
     fileprivate func fetchData() {
-        var topGrossingGroup: AppGroup?
-        var gamesGroup: AppGroup?
-        var freeGroup: AppGroup?
-
+        
+        var group1: AppGroup?
+        var group2: AppGroup?
+        var group3: AppGroup?
+        
+        // help you sync your data fetches together
         let dispatchGroup = DispatchGroup()
         
         dispatchGroup.enter()
-        Service.shared.fetchTopGrossing { (appGroup, err) in
+        Service.shared.fetchGames { (appGroup, err) in
+            print("Done with games")
             dispatchGroup.leave()
-            if let err = err {
-                print("Failed to fetch games:", err)
-                return
-            }
-            
-            topGrossingGroup = appGroup
+            group1 = appGroup
         }
         
         dispatchGroup.enter()
-        Service.shared.fetchGames { (appGroup, err) in
+        Service.shared.fetchTopGrossing { (appGroup, err) in
+            print("Done with top grossing")
             dispatchGroup.leave()
-            if let err = err {
-                print("Failed to fetch games:", err)
-                return
-            }
-            
-            gamesGroup = appGroup
+            group2 = appGroup
         }
         
         dispatchGroup.enter()
         Service.shared.fetchTopFree { (appGroup, err) in
             dispatchGroup.leave()
-            if let err = err {
-                print("Failed to fetch games:", err)
-                return
-            }
-            
-            freeGroup = appGroup
+            print("Done with free games")
+            group3 = appGroup
         }
         
+        dispatchGroup.enter()
+        Service.shared.fetchSocialApps { (apps, err) in
+            // you should check the err
+            dispatchGroup.leave()
+            self.socialApps = apps ?? []
+//            self.collectionView.reloadData()
+        }
+        
+        // completion
         dispatchGroup.notify(queue: .main) {
-            if let group = topGrossingGroup {
+            print("completed your dispatch group tasks...")
+            
+            self.activityIndicatorView.stopAnimating()
+            
+            if let group = group1 {
                 self.groups.append(group)
             }
-            
-            if let group = gamesGroup {
+            if let group = group2 {
                 self.groups.append(group)
             }
-            
-            if let group = freeGroup {
+            if let group = group3 {
                 self.groups.append(group)
             }
-            
             self.collectionView.reloadData()
         }
     }
     
     // 2
     override func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
-        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: headerId, for: indexPath)
+        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: headerId, for: indexPath) as! AppsPageHeader
+        header.appHeaderHorizontalController.socialApps = self.socialApps
+        header.appHeaderHorizontalController.collectionView.reloadData()
         return header
     }
     
@@ -103,6 +119,7 @@ class AppsPageController: BaseListController, UICollectionViewDelegateFlowLayout
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: cellId, for: indexPath) as! AppsGroupCell
         
         let appGroup = groups[indexPath.item]
+        
         cell.titleLabel.text = appGroup.feed.title
         cell.horizontalController.appGroup = appGroup
         cell.horizontalController.collectionView.reloadData()
@@ -117,7 +134,5 @@ class AppsPageController: BaseListController, UICollectionViewDelegateFlowLayout
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
         return .init(top: 16, left: 0, bottom: 0, right: 0)
     }
+    
 }
-
-
-
